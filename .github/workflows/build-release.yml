@@ -12,15 +12,42 @@ env:
 
 jobs:
   release:
-    name: Build for ${{ matrix.arch }}
+    name: Build ${{ matrix.arch }}-${{ matrix.sdk }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - arch: x86_64
-            sdk_url_path: https://downloads.openwrt.org/releases/23.05.5/targets/x86/64
-            sdk_name: -sdk-23.05.5-x86-64_
+        arch:
+          - aarch64_cortex-a53
+          - aarch64_cortex-a72
+          - aarch64_generic
+          - arm_arm1176jzf-s_vfp
+          - arm_arm926ej-s
+          - arm_cortex-a15_neon-vfpv4
+          - arm_cortex-a5_vfpv4
+          - arm_cortex-a7
+          - arm_cortex-a7_neon-vfpv4
+          - arm_cortex-a8_vfpv3
+          - arm_cortex-a9
+          - arm_cortex-a9_neon
+          - arm_cortex-a9_vfpv3-d16
+          - arm_fa526
+          - arm_mpcore
+          - arm_xscale
+          - i386_pentium-mmx
+          - i386_pentium4
+          - mips64_octeonplus
+          - mips_24kc
+          - mips_4kec
+          - mips_mips32
+          - mipsel_24kc
+          - mipsel_24kc_24kf
+          - mipsel_74kc
+          - mipsel_mips32
+          - x86_64
+        sdk:
+          - openwrt-22.03
+          - SNAPSHOT
 
     env:
       SDK_URL_PATH: ${{ matrix.sdk_url_path }}
@@ -29,7 +56,9 @@ jobs:
       CONFIG_CCACHE: y
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Prepare Cache Key
         id: cache_key
@@ -98,40 +127,30 @@ jobs:
           ln -s "${{ github.workspace }}" "package/$PACKAGE_NAME"
           ./scripts/feeds install -a
           cd -
-      - name: Build Packages
-        run: |
-          cd "$SDK_HOME"
-          make defconfig
-          make package/${PACKAGE_NAME}/status/{clean,compile} V=s
-          find "$SDK_HOME/bin/" -type f -name "*.ipk" -exec ls -lh {} \;
-          cd -
-      - name: Copy Bin Files
-        run: |
-          find "$SDK_HOME/bin/" -type f -name "${PACKAGE_NAME}*.ipk" -exec cp {} "${{ github.workspace }}" \;
-          find "${{ github.workspace }}" -type f -name "*.ipk" -exec ls -lh {} \;
-      - name: Release and Upload Assets
-        uses: softprops/action-gh-release@v1
+      - name: Building packages
+        uses: sbwml/openwrt-gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}-${{ matrix.sdk }}
+          FEEDNAME: packages_ci
+          PACKAGES: luci-app-ddns-go
+          NO_REFRESH_CHECK: true
+          V: s
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: "*.ipk"
+          name: ${{ matrix.arch }}-${{ matrix.sdk }}
+          path: bin/packages/${{ matrix.arch }}/packages_ci/*.[ai]pk
+
+      - name: Create compress files
+        run: |
+          #tar -zcvf xray-${{ matrix.sdk }}-${{ matrix.arch }}.tar.gz -C bin/packages/${{ matrix.arch }}/ packages_ci
+          zip -j xray-${{ matrix.arch }}-${{ matrix.sdk }}.zip bin/packages/${{ matrix.arch }}/packages_ci/*
+          echo "build_time=$(date '+%Y年%m月%d日%H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
+
+      - name: Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        tag_name: ${{ env.TAG }}
+            files: xray-${{ matrix.arch }}-${{ matrix.sdk }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  notify:
-    name: Notify Release Publish
-    runs-on: ubuntu-latest
-    env:
-      TRIGGER_URL: ${{ secrets.TRIGGER_URL }}
-      TRIGGER_TOKEN: ${{ secrets.TRIGGER_TOKEN }}
-    needs: release
-    steps:
-      - name: Notify Jenkins
-        run: |
-          if [ -z "$TRIGGER_URL" ] ; then
-            echo "::warning::No trigger url found, skip..."
-            exit 0
-          fi
-          curl -X POST \
-              -H "Content-Type: application/json; charset=utf-8" \
-              -H "Authorization: Bearer $TRIGGER_TOKEN" \
-              -d "{\"event\":\"release\",\"repository\":\"${{ github.repository }}\",\"ref\":\"${{ github.ref }}\"}" \
-              "$TRIGGER_URL" || true
