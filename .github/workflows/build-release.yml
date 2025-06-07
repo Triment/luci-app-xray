@@ -65,7 +65,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.sdk }}
           FEEDNAME: packages_ci
-          PACKAGES: luci-app-xray luci-app-xray-status luci-app-xray-geodata
+          PACKAGES: core geodata status
           NO_REFRESH_CHECK: true
           V: s
 
