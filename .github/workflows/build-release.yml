@@ -151,6 +151,6 @@ jobs:
       - name: Release and Upload Assets
         uses: softprops/action-gh-release@v2
         tag_name: ${{ env.TAG }}
-            files: xray-${{ matrix.arch }}-${{ matrix.sdk }}.zip
+        files: xray-${{ matrix.arch }}-${{ matrix.sdk }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
