@@ -65,7 +65,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.sdk }}
           FEEDNAME: packages_ci
-          PACKAGES: core geodata status
+          PACKAGES: core geodata status luci-i18n-xray-zh-cn
           NO_REFRESH_CHECK: true
           V: s
 
